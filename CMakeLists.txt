@@ -1,19 +1,46 @@
 cmake_minimum_required(VERSION 3.10)
 project(PracticaFinal_SSDD C)
 
-# Configuración de compilación
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -g")
 
-# Buscar dependencias
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(TIRPC libtirpc)
 
-# Incluir directorios
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${TIRPC_INCLUDE_DIRS})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${TIRPC_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
 
-# Servidor de Mensajería (C)
-add_executable(server server.c)
+# Generación de código RPC
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/log.h
+           ${CMAKE_CURRENT_BINARY_DIR}/log_clnt.c
+           ${CMAKE_CURRENT_BINARY_DIR}/log_svc.c
+           ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c
+    COMMAND rpcgen -C -M -h -o ${CMAKE_CURRENT_BINARY_DIR}/log.h ${CMAKE_CURRENT_SOURCE_DIR}/log.x
+    COMMAND rpcgen -C -M -l -o ${CMAKE_CURRENT_BINARY_DIR}/log_clnt.c ${CMAKE_CURRENT_SOURCE_DIR}/log.x
+    COMMAND rpcgen -C -M -m -o ${CMAKE_CURRENT_BINARY_DIR}/log_svc.c ${CMAKE_CURRENT_SOURCE_DIR}/log.x
+    COMMAND rpcgen -C -M -c -o ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c ${CMAKE_CURRENT_SOURCE_DIR}/log.x
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/log.x
+)
+
+# ── Silenciar warnings en código generado por rpcgen (no editable) ──────────
+set_source_files_properties(
+    ${CMAKE_CURRENT_BINARY_DIR}/log_clnt.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_svc.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c
+    PROPERTIES COMPILE_FLAGS "-w"
+)
+# ────────────────────────────────────────────────────────────────────────────
+
+# Servidor de Mensajería (usa el cliente RPC)
+add_executable(server server.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_clnt.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c
+)
 target_link_libraries(server Threads::Threads ${TIRPC_LIBRARIES})
 
-# Nota: Para la parte de RPC, aquí añadirías las reglas de rpcgen
+# Servidor RPC de registro
+add_executable(rpc_server rpc_server.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_svc.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c
+)
+target_link_libraries(rpc_server ${TIRPC_LIBRARIES})
