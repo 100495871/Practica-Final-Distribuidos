@@ -1,0 +1,7 @@
+*
+!client.py
+!CMakeLists.txt
+!*.pdf
+!README.md
+!server.c
+!.gitignore
