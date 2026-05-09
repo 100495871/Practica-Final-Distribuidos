@@ -3,6 +3,8 @@
 !*/CMakeLists.txt
 !*.pdf
 !README.md
-!/servidor/
-!servidor/*.c
+!/services/
+!services/*.c
 !.gitignore
+!/cliente/
+!/cliente/*.py
