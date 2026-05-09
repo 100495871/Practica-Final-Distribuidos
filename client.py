@@ -9,14 +9,14 @@ import requests
 
 class client:
 
-    # ==================== TIPOS ====================
 
     class RC(Enum):
+        # Parecido a los define de c
         OK         = 0
         ERROR      = 1
         USER_ERROR = 2
 
-    # ==================== ATRIBUTOS DE CLASE ====================
+    # Atributos necesarios para la conexión
 
     _server         = None   # IP del servidor
     _port           = -1     # Puerto del servidor
@@ -25,14 +25,15 @@ class client:
     _listen_thread  = None   # Hilo de escucha
     _stop_event     = None   # Event para detener el hilo de escucha
     
-    # Estructura para almacenar usuarios conectados: {username: (ip, port)}
+    # Diccionario para almacenar usuarios conectados: {username: (ip, port)}
     _connected_users_list = {}
 
-    # ==================== FUNCIONES AUXILIARES DE PROTOCOLO ====================
+    # FUNCIONES AUXILIARES DE PROTOCOLO
 
     @staticmethod
     def _send_string(sock, s):
-        """Envía una cadena terminada en \\0 por el socket."""
+        """Envía una cadena terminada en \
+            \0 por el socket."""
         data = s.encode('utf-8') + b'\x00'
         sock.sendall(data)
 
