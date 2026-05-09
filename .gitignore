@@ -1,7 +1,8 @@
 *
 !client.py
-!CMakeLists.txt
+!*/CMakeLists.txt
 !*.pdf
 !README.md
-!server.c
+!/servidor/
+!servidor/*.c
 !.gitignore
