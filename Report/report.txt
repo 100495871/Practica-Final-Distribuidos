@@ -1,0 +1,74 @@
+#import "@preview/hydra:0.6.2": hydra
+#import "uc3m_plantilla.typ": portada_uc3m
+
+#show: portada_uc3m.with(
+  titulo: "Practica Final: Desarrollo de un sistema de mensajería distribuido",
+  asignatura: "Sistemas Distribuidos",
+  titulacion: "Grado en Ingeniería Informática",
+  autores: (
+  ),
+  departamento: "ARCOS",
+  curso: "2025/2026",
+)
+
+#set page(
+  header: context {
+    // Muestra "1. Introducción" en la cabecera
+    hydra(1)
+  },
+  numbering: "1 / 1",
+  footer: context {
+    align(center, counter(page).display())
+  }
+)
+
+
+= Introducción
+
+El objetivo de este proyecto ha sido implementar el servicio de almacenamiento de tuplas distribuido ya existente sobre RPCs añadiendo más capas de abstracción. Es importante recalcar que el nuevo servicio ofrece las mismas seis operaciones previas: destruir todos los datos, insertar una tupla, obtener una tupla, modificar una tupla, borrar una tupla y comprobar si una clave existe sin añadir más complejidad al código escrito, ya que clientes.c sigue siendo igual. La comunicación entre el cliente y el servidor se realiza mediante llamadas a procedimientos remotos (RPC) usando la herramienta rpcgen.
+
+= Diseño general
+
+El sistema se compone de tres partes bien diferenciadas. Por un lado está la biblioteca libclaves.so, que contiene la lógica de almacenamiento real previa ya existente. Por otro lado está el servidor RPC, la parte implementada en este ejercicio, que recibe las peticiones de los clientes, traduce los tipos de datos de red a los tipos locales y llama a las funciones de libclaves.so. Finalmente, el cliente no llama directamente a libclaves.so, sino que utiliza una biblioteca proxy llamada libproxyclaves.so. Esta biblioteca proxy implementa exactamente las mismas funciones que claves.h, pero internamente convierte cada llamada en un mensaje RPC enviado al servidor. De esta forma, el programa cliente (app_cliente.c) puede escribir código como si estuviera usando la biblioteca local, mientras que en realidad está trabajando de forma remota.
+
+= Archivos del proyecto y compilación
+
+Todos los archivos fuente se encuentran en el directorio src y los archivos de cabecera en include. A continuación se describen los ficheros más importantes.
+
+El archivo src/claves.c y su cabecera include/claves.h no cambia como ya hemos mencionado: implementa las funciones de la interfaz local: destroy, set_value, get_value, modify_value, delete_key y exist. Utiliza la lista enlazada y el mutex comentado anteriormente. 
+
+Para la comunicación RPC se ha escrito el archivo src/clavesRPC.x, que describe la interfaz del servicio remoto. En él se definen un nuevo tipo PaqueteRPC (ya que no se podía llamar paquete porque daría error con el resto de biblitecas), un vector de floats con longitud máxima 32, una estructura TuplaRPC para devolver los datos, y una estructura p_set_value para agrupar los argumentos de las operaciones set y modify. El programa RPC se llama CLAVES_PROG (número 99, aunque podría ser cualquier otro que no este en uso en el portmapper) y la versión CLAVES_VERS (número 1). Dentro se declaran seis procedimientos: DESTROY, SET_VALUE, GET_VALUE, MODIFY_VALUE, DELETE_KEY y EXIST. El procedimiento GET_VALUE devuelve directamente una TuplaRPC, mientras que los demás devuelven un entero.
+
+Al compilar el proyecto, el Makefile invoca a rpcgen para generar los archivos necesarios a partir de clavesRPC.x en caso de no estar ya generados. Concretamente, se ejecuta rpcgen con las opciones -h, -l, -m y -c para obtener respectivamente la cabecera clavesRPC.h, los stubs del cliente (clavesRPC_clnt.c), el esqueleto del servidor (clavesRPC_svc.c) y las funciones de serialización XDR (clavesRPC_xdr.c). Todos estos archivos se generan dentro del directorio src y se compilan junto con el resto del código.
+
+El servidor se construye a partir del archivo src/clavesRPC_server.c, que implementa las funciones servidoras (destroy_1_svc, set_value_1_svc, etc.). Estas funciones convierten los tipos RPC (por ejemplo, el vector_floats de XDR) en los tipos que espera la biblioteca claves (un array de floats y su longitud). Después invocan a la función correspondiente de claves.h y devuelven el resultado. El esqueleto generado por rpcgen (clavesRPC_svc.c) se encarga de recibir las peticiones, llamar a las funciones \*\_svc y enviar las respuestas. El servidor se enlaza con la biblioteca libclaves.so y con la biblioteca tirpc, que proporciona las funciones de RPC.
+
+El proxy del cliente está en src/proxy-rpc.c. Este archivo implementa las seis funciones de la interfaz claves.h, pero en lugar de manejar una lista local, crea un cliente RPC usando clnt_create y la variable de entorno IP_TUPLAS para conocer la dirección del servidor. Cada función empaqueta los argumentos en las estructuras definidas en clavesRPC.h, llama al stub correspondiente (por ejemplo set_value_1) y después libera los recursos. Para la operación get_value, además de llamar al stub, copia los datos devueltos por el servidor a los punteros que recibe como argumento. El proxy se compila como una biblioteca compartida llamada libproxyclaves.so y el cliente de pruebas (app_cliente.c) enlaza con ella.
+
+El programa cliente de pruebas se llama app_cliente.c. Contiene una serie de pruebas automáticas que verifican la inserción, modificación, borrado, comprobación de existencia y el comportamiento ante errores (clave duplicada, tamaños de vector fuera de rango). También inserta cien elementos para comprobar que no hay límite de almacenamiento. Este cliente no necesita conocer la dirección del servidor directamente, porque la biblioteca proxy la obtiene de la variable de entorno IP_TUPLAS.
+
+= Compilación paso a paso
+
+Para compilar todo el proyecto se proporciona un CMakeLists que automatiza todo el proceso. Cuando se ejecuta el comando make, ocurre lo siguiente:
+
+Primero, el script comprueba si los archivos generados por rpcgen existen y están actualizados. Si no es así, ejecuta rpcgen sobre clavesRPC.x y produce los cuatro archivos mencionados. Después compila la biblioteca libclaves.so a partir de claves.c, utilizando las opciones -fPIC y -shared. A continuación compila la biblioteca libproxyclaves.so a partir de proxy-rpc.c y de los stubs del cliente y las funciones XDR, enlazando con tirpc. Luego compila el servidor clavesRPC_server enlazando clavesRPC_server.c, el esqueleto clavesRPC_svc.c, las funciones XDR y la biblioteca libclaves.so. Finalmente compila el cliente app_cliente enlazando app_cliente.c con libproxyclaves.so.
+
+Todos los ejecutables y bibliotecas se depositan en el directorio build. Se configura el RPATH de los ejecutables para que busquen las bibliotecas compartidas dentro de la misma carpeta build, evitando así tener que modificar la variable LD_LIBRARY_PATH.
+
+Para limpiar los archivos generados, el Makefile dispone de la regla clean, que borra el directorio build y también elimina los ficheros generados por rpcgen dentro de src.
+
+= Ejecución del sistema
+
+Para poner en marcha el servicio, primero se debe iniciar el servidor en una terminal. Basta con ejecutar ./clavesRPC_server desde el directorio build. El servidor se registra en el mapeador de puertos de RPC y queda a la espera de peticiones. No necesita ningún argumento en la línea de comandos.
+
+Para ejecutar el cliente, en otra terminal es necesario definir la variable de entorno IP_TUPLAS con la dirección IP o el nombre de la máquina donde corre el servidor. Por ejemplo, si el servidor está en la misma máquina, se puede hacer export IP_TUPLAS=127.0.0.1. Después se ejecuta ./app_cliente desde el directorio build. El cliente mostrará por pantalla el resultado de cada prueba, indicando si ha sido exitosa o no.
+
+El servidor puede atender a varios clientes de forma concurrente. La biblioteca libclaves.so utiliza un mutex que protege la lista enlazada, por lo que las operaciones de distintos clientes se serializan cuando acceden a la estructura común. Esto garantiza que los datos no se corrompan aunque varias peticiones lleguen al mismo tiempo.
+
+= Conclusiones
+
+Se ha completado el desarrollo de un servicio de almacenamiento clave‑valor basado en RPC, respetando la interfaz original sin modificarla. La solución emplea una lista enlazada sin límite de elementos y utiliza rpcgen para generar el código de comunicación. El Makefile automatiza por completo la generación de los archivos RPC y la compilación de las bibliotecas y ejecutables. El cliente prueba todas las funcionalidades exigidas en el enunciado, incluyendo la comprobación de errores y la inserción masiva. El sistema es concurrente gracias al uso de mutex en el servidor. 
+
+En cuanto a la complejidad de desarrollo de esta aplicación usando RPC es notablemente menor y, por ende, más rápida. El flujo de desarrollo también es notablemente distinto al tener que desarrollar la interfaz y editar después, complicando en cierta medida el CMakeLists.
+
+Todos los materiales necesarios para reproducir la compilación y ejecución se entregan en el fichero comprimido.

@@ -13,3 +13,5 @@
 !/tests/
 !/tests/run_tests.sh
 !/test/*.py
+!/Report/
+!/Report/*

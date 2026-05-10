@@ -13,7 +13,7 @@
 #include <rpc/rpc.h>
 #include "log.h"
 
-/* ===================== CONSTANTES ===================== */
+/* CONSTANTES */
 #define MAX_USERS        100
 #define MAX_PENDING      100
 #define MAX_NAME         256
@@ -25,7 +25,7 @@
 #define DISCONNECTED     0
 #define CONNECTED        1
 
-/* ===================== ESTRUCTURAS ===================== */
+/* ESTRUCTURAS */
 
 typedef struct {
     unsigned int id;
@@ -51,7 +51,7 @@ typedef struct {
     char ip[MAX_IP];
 } ClientArgs;
 
-/* ===================== VARIABLES GLOBALES ===================== */
+/* VARIABLES GLOBALES */
 
 static User           users[MAX_USERS];
 static int            num_users = 0;
@@ -59,7 +59,7 @@ static pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int            server_fd = -1;
 static char           *rpc_server_ip = NULL;
 
-/* ===================== RPC CLIENT ===================== */
+/* Cliente RPC */
 
 static void call_rpc_log(const char *user, const char *op, const char *filename) {
     if (!rpc_server_ip) return;
@@ -93,7 +93,7 @@ static void call_rpc_log(const char *user, const char *op, const char *filename)
     clnt_destroy(clnt);
 }
 
-/* ===================== FUNCIONES AUXILIARES DE RED ===================== */
+/* FUNCIONES AUXILIARES DE RED */
 
 static int send_string(int fd, const char *s) {
     int   len = (int)strlen(s) + 1;
@@ -149,7 +149,7 @@ static int find_user(const char *name) {
     return -1;
 }
 
-/* ===================== ENVÍO SERVIDOR → CLIENTE ===================== */
+/* ENVÍO SERVIDOR → CLIENTE */
 
 static int deliver_message(const char *ip, const char *port, const char *sender, 
                           unsigned int id, const char *message, const char *filename) {
@@ -215,7 +215,7 @@ static void send_ack_to_sender(const char *ip, const char *port, unsigned int id
     close(sock);
 }
 
-/* ===================== MANEJADORES DE OPERACIONES ===================== */
+/* MANEJADORES DE OPERACIONES */
 
 static void handle_register(int fd, const char *ip) {
     char name[MAX_NAME];
