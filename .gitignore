@@ -4,12 +4,11 @@
 !*.pdf
 !README.md
 !/services/
-!services/*.c
+!services/rpc_server.c
+!services/server.c
 !.gitignore
 !/cliente/
 !/cliente/*.py
-!/*.c
-!/*.h
 !/log.x
 !/tests/
 !/tests/run_tests.sh
