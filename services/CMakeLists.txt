@@ -1,5 +1,12 @@
 # services/CMakeLists.txt
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build)
+# Silenciar warnings en código generado por rpcgen ya que no  es editable
+set_source_files_properties(
+    ${CMAKE_CURRENT_BINARY_DIR}/log_clnt.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_svc.c
+    ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c
+    PROPERTIES COMPILE_FLAGS "-w -Wno-unused-variable -Wno-unused-parameter"
+)
 # Servidor de Mensajería (usa el cliente RPC)
 add_executable(server server.c
     ${CMAKE_CURRENT_BINARY_DIR}/../log_clnt.c
