@@ -13,3 +13,4 @@
 !/log.x
 !/tests/
 !/tests/run_tests.sh
+!/test/*.py
