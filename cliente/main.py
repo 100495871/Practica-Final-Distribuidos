@@ -5,6 +5,7 @@ from server_connection import ServerConnection
 from message_receiver import MessageReceiver
 from socket_utils import SocketUtils
 from protocol import RC, ProtocolCommands
+import requests
 
 class ChatClient:
     def __init__(self, server_ip, server_port):
