@@ -22,13 +22,6 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/log.x
 )
 
-# Silenciar warnings en código generado por rpcgen ya que no  es editable
-set_source_files_properties(
-    ${CMAKE_CURRENT_BINARY_DIR}/log_clnt.c
-    ${CMAKE_CURRENT_BINARY_DIR}/log_svc.c
-    ${CMAKE_CURRENT_BINARY_DIR}/log_xdr.c
-    PROPERTIES COMPILE_FLAGS "-w -Wno-unused-variable -Wno-unused-parameter"
-)
 
 # Añadir el subdirectorio services
 add_subdirectory(services)
