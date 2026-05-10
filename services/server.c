@@ -368,14 +368,19 @@ static void handle_send_generic(int fd, int has_attach) {
     unsigned int msg_id = ++users[sidx].msg_counter;
     if (msg_id == 0) msg_id = users[sidx].msg_counter = 1;
 
-    int r_conn = (users[ridx].status == CONNECTED);
-    char rip[MAX_IP], rport[MAX_PORT];
-    if (r_conn) { strcpy(rip, users[ridx].ip); strcpy(rport, users[ridx].port); }
-    else if (users[ridx].num_pending < MAX_PENDING) {
+    /* 1. Almacenar en pendientes siempre (se sacará si se entrega ahora mismo) */
+    if (users[ridx].num_pending < MAX_PENDING) {
         PendingMsg *pm = &users[ridx].pending[users[ridx].num_pending++];
         pm->id = msg_id; pm->has_attach = has_attach;
         strcpy(pm->sender, sender); strcpy(pm->text, message);
         if (has_attach) strcpy(pm->filename, filename);
+    }
+
+    int r_status = users[ridx].status;
+    char rip[MAX_IP], rport[MAX_PORT];
+    if (r_status == CONNECTED) { 
+        strcpy(rip, users[ridx].ip); 
+        strcpy(rport, users[ridx].port); 
     }
     
     int s_conn = (users[sidx].status == CONNECTED);
@@ -383,28 +388,46 @@ static void handle_send_generic(int fd, int has_attach) {
     if (s_conn) { strcpy(sip, users[sidx].ip); strcpy(sport, users[sidx].port); }
     pthread_mutex_unlock(&users_mutex);
     
+    /* 2. Devolver ID al remitente */
     char id_str[32]; snprintf(id_str, sizeof(id_str), "%u", msg_id);
     send_byte(fd, 0);
     send_string(fd, id_str);
     
-    if (r_conn) {
+    /* 3. Intentar envío si está conectado */
+    if (r_status == CONNECTED) {
         if (deliver_message(rip, rport, sender, msg_id, message, has_attach ? filename : NULL) == 0) {
+            printf("s> SEND MESSAGE %u FROM %s TO %s\n", msg_id, sender, receiver);
+            fflush(stdout);
             if (s_conn) send_ack_to_sender(sip, sport, msg_id, has_attach ? filename : NULL);
-        } else {
-            // Se desconectó el destino durante el envío
+            
+            /* Sacar de la lista de pendientes del destino ya que se entregó con éxito */
             pthread_mutex_lock(&users_mutex);
             int r = find_user(receiver);
             if (r >= 0) {
-                users[r].status = DISCONNECTED;
-                if (users[r].num_pending < MAX_PENDING) {
-                    PendingMsg *pm = &users[r].pending[users[r].num_pending++];
-                    pm->id = msg_id; pm->has_attach = has_attach;
-                    strcpy(pm->sender, sender); strcpy(pm->text, message);
-                    if (has_attach) strcpy(pm->filename, filename);
+                for (int i = 0; i < users[r].num_pending; i++) {
+                    if (users[r].pending[i].id == msg_id && strcmp(users[r].pending[i].sender, sender) == 0) {
+                        for (int k = i; k < users[r].num_pending - 1; k++) {
+                            users[r].pending[k] = users[r].pending[k+1];
+                        }
+                        users[r].num_pending--;
+                        break;
+                    }
                 }
             }
             pthread_mutex_unlock(&users_mutex);
+        } else {
+            /* Error en envío: marcar como desconectado y dejar en lista (ya está allí) */
+            pthread_mutex_lock(&users_mutex);
+            int r = find_user(receiver);
+            if (r >= 0) users[r].status = DISCONNECTED;
+            pthread_mutex_unlock(&users_mutex);
+            printf("s> MESSAGE %u FROM %s TO %s STORED\n", msg_id, sender, receiver);
+            fflush(stdout);
         }
+    } else {
+        /* Estaba desconectado */
+        printf("s> MESSAGE %u FROM %s TO %s STORED\n", msg_id, sender, receiver);
+        fflush(stdout);
     }
 }
 
